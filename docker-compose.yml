@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: pcprotection-postgres
+    environment:
+      POSTGRES_DB: pcprotection
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Rani@123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - pcprotection-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PC Protection Service
+  pcprotection-service:
+    build:
+      context: .
+      dockerfile: PcProtectionService/Dockerfile
+    container_name: pcprotection-service
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=pcprotection;Username=postgres;Password=Rani@123;
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - pcprotection-network
+    restart: unless-stopped
+
+  # PC Protection API
+  pcprotection-api:
+    build:
+      context: .
+      dockerfile: PCProtectionApi/Dockerfile
+    container_name: pcprotection-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=pcprotection;Username=postgres;Password=Rani@123;
+    ports:
+      - "5104:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pcprotection-service:
+        condition: service_started
+    networks:
+      - pcprotection-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  pcprotection-network:
+    driver: bridge
